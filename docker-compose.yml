@@ -1,0 +1,76 @@
+version: '3'
+services:
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/error.log:/etc/nginx/error_log.log
+      - ./nginx/cache/:/etc/nginx/cache
+      - ${PL_CERTS_DIR:-./certs}:/certs
+      - ./certbot-webroot:/certbot-webroot
+    ports:
+      # - 5555:80
+      - ${PL_PROXY_PORT:-443}:443
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+
+  server:
+    image: padloc/server
+    container_name: padloc_server
+    environment:
+      - PL_PWA_URL
+      - PL_EMAIL_USER
+      - PL_EMAIL_SERVER
+      - PL_EMAIL_PORT
+      - PL_EMAIL_PASSWORD
+      - PL_EMAIL_FROM
+      - PL_REPORT_ERRORS
+      - PL_MFA
+      - PL_REPL_PORT
+      - PL_LEGACY_URL
+      - PL_LEGACY_KEY
+    expose:
+      - 3000
+    volumes:
+      - ./data:/data
+      - ./docs:/docs
+      - ./logs:/logs
+    restart: unless-stopped
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+
+  pwa:
+    image: padloc/pwa
+    container_name: padloc_pwa
+    environment:
+      - PL_SERVER_URL
+      - PL_PWA_URL
+    expose:
+      - 8080
+    volumes:
+      - ./pwa:/pwa
+    command: ['build_and_start']
+    restart: on-failure
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+
+  watchtower:
+    container_name: watchtower
+    image: v2tec/watchtower
+    command: --cleanup --label-enable
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  # certbot:
+  #   image: certbot/certbot
+  #   container_name: certbot
+  #   depends_on:
+  #     - nginx
+  #   volumes:
+  #     - ./certbot-webroot:/certbot-webroot
+  #     - ./letsencrypt:/etc/letsencrypt
+  #   command: certonly --webroot -w /certbot-webroot -d test.padloc.app -m martin@padloc.app --non-interactive --agree-tos
+  #   labels:
+  #     - com.centurylinklabs.watchtower.enable=true
